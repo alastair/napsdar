@@ -10,6 +10,7 @@ import httplib
 import os
 import ConfigParser
 import sys
+import time
 
 session_created=False
 session_key = ""
@@ -32,9 +33,7 @@ def connect():
 
 	if user != "" and passw != "":
 		_login(apiKey, user, passw)
-		print >> sys.stderr, "logging in"
 	else:
-		print >> sys.stderr, "no user"
 		_createSession(apiKey)
 
 def _createSession(apiKey):
@@ -106,26 +105,54 @@ def _do_napster_query(method,**kwargs):
 def _do_parsed_napster_query(method, **kwargs):
 	return _parse_tree(_do_napster_query(method, **kwargs))
 
-def searchArtist(name):
+def searchArtists(name):
 	return _do_parsed_napster_query("search/artists", searchTerm=name)
 
-def searchTrack(title):
+def searchTracks(title):
 	return _do_parsed_napster_query("search/tracks", searchTerm=title)
 
 def getStreamData(artist, title):
-	res = searchTrack(title)
-	for t in res.get('track', []):
-		# XXX: List of tracks - can we rank all of them?  based on how much of the name matches
-                if t['trackName'][0] == title and t['artistName'][0] == artist:
+	artists = searchArtists(artist)
+	artistlist = []
+	for artist in artists.get('artist', []):
+		artistlist.append(artist['restArtistURL'][0])
+	tracks = searchTracks(title)
+	ret = []
+	for t in tracks.get('track', []):
+		artistUrl = t['artistResourceURL'][0]
+		if artistUrl in artistlist:
 			url = t['playTrackURL'][0]
-			url = urlparse.urlparse(url)
-			f = _do_napster_query("tracks/%s" % os.path.basename(url.path))
+			url += "?sessionKey="+session_key
+			# Napster currently returns a http:// url but the https port, so change it.
+			url = url.replace(":8443", ":8080")
+			#url = urlparse.urlparse(url)
+			#f = _do_napster_query("tracks/%s" % os.path.basename(url.path))
 
-			return {"url": f.url, "artist": t['artistName'][0], "track": t['trackName'][0], "album": t['albumName'][0]}
+			duration = t['duration'][0]
+			durparts = duration.split(":")
+			if len(durparts) == 2:
+				length = int(durparts[0]) * 60 + int(durparts[1])
+			else:
+				length = -1
+
+			ret.append({
+				"url": url,
+				"artist": t['artistName'][0],
+				"track": t['trackName'][0],
+				"album": t['albumName'][0],
+				"duration": length })
+	return ret
 
 def test():
+	import time
+	start = time.time()
+	print "starting at", start
 	connect()
-	print getStreamData("Miles Davis", "Bitches Brew")
+	m = time.time()
+	print "Logged in after",m-start,"secs"
+	print getStreamData(sys.argv[1], sys.argv[2])
+	print "got results after",time.time()-m,"secs"
+	print "total queries:", queries
 
 if __name__ == "__main__":
 	test()
