@@ -12,16 +12,13 @@ import os
 session_created=False
 session_key = ""
 
-def createSession(key, device):
+# XXX: For the hackday this can be anything - should be a MAC or something
+DEVICE_ID="hack"
+
+def createSession(apiKey):
 	global session_created, session_key
-	args = {"apiKey": key, "deviceId": device}
-	url=urlparse.urlunparse(('http',
-		'api.napster.com:8080',
-		'/rest/v4/security/createSession',
-		'',
-		urllib.urlencode(args),
-		''))
-	res = _parse_tree(_do_raw_napster_query(url))
+	args = {"apiKey": apiKey, "deviceId": DEVICE_ID}
+	res = _do_parsed_napster_query("security/createSession", apiKey=apiKey, deviceId=DEVICE_ID)
 	session_key = res['sessionKey'][0]
 	session_created = True
 
@@ -48,26 +45,25 @@ def _etree_to_dict(etree):
 
 def _parse_tree(f):
 	tree = xml.etree.ElementTree.ElementTree(file=f)
-	result=_etree_to_dict(tree.getroot())
-	return result
+	return _etree_to_dict(tree.getroot())
 
 def _do_raw_napster_query(url):
 	f = urllib2.Request(url)
-	#print "sending query %s" % url
 	try:
 		f = urllib2.urlopen(f)
 	except Exception, e:
-		print e.msg
-		print e.fp.read()
+		print >> sys.stderr, e.msg
+		print >> sys.stderr, e.fp.read()
 		raise
 	return f
 
 def _do_napster_query(method,**kwargs):
-	if not session_created:
-		raise Exception("Create session first")
-	args = {
-		"sessionKey" : session_key,
-	 	}
+	args = {}
+	if session_created:
+		args = { "sessionKey" : session_key }
+	elif method != "security/login" and method != "security/createSession":
+		raise Exception("Login or create a session first")
+
 	for k,v in kwargs.items():
 		args[k] = v.encode("utf8")
 	url=urlparse.urlunparse(('https',
@@ -76,37 +72,32 @@ def _do_napster_query(method,**kwargs):
 		'',
 		urllib.urlencode(args),
 		''))
-	return _parse_tree(_do_raw_napster_query(url))
+	return _do_raw_napster_query(url)
+
+def _do_parsed_napster_query(method, **kwargs):
+	return _parse_tree(_do_napster_query(method, **kwargs))
 
 def searchArtist(name):
-	return _do_napster_query("search/artists", searchTerm=name)
+	return _do_parsed_napster_query("search/artists", searchTerm=name)
 
 def searchTrack(title):
-	return _do_napster_query("search/tracks", searchTerm=title)
+	return _do_parsed_napster_query("search/tracks", searchTerm=title)
+
 
 def getStreamData(artist, title):
 	res = searchTrack(title)
-	for t in res['track']:
+	for t in res.get('track', []):
+		# XXX: List of tracks - can we rank all of them?  based on how much of the name matches
                 if t['trackName'][0] == title and t['artistName'][0] == artist:
 			url = t['playTrackURL'][0]
 			url = urlparse.urlparse(url)
-			path = os.path.basename(url.path)
-			url=urlparse.urlunparse(('https',
-				'api.napster.com:8443',
-				url.path,
-				'',
-				urllib.urlencode({"sessionKey":session_key}),
-				''))
-			request = urllib2.Request(url)
-			opener = urllib2.build_opener()
-			f = opener.open(request)
+			f = _do_napster_query("tracks/%s" % os.path.basename(url.path))
 
 			return {"url": f.url, "artist": t['artistName'][0], "track": t['trackName'][0], "album": t['albumName'][0]}
 
 def test():
-	createSession("SSHvRhrPsvDwVodGkPUw", "ap")
-	#print searchArtist("Miles Davis")
-	getStreamUrl("Miles Davis", "Jean Pierre")
+	#createSession("SSHvRhrPsvDwVodGkPUw")
+	print getStreamData("Miles Davis", "Bitches Brew")
 
 if __name__ == "__main__":
 	test()
