@@ -3,10 +3,12 @@
 # to see this in action.
 import playdar_resolver
 import napster
+import sys
+import traceback
 
 class NapsterResolver(playdar_resolver.PlaydarResolver):
 	def __init__(self):
-		napster.createSession("SSHvRhrPsvDwVodGkPUw", "ap")
+		napster.connect()
 	def resolver_settings(self):
 		return {'name':"Napster Resolver"}
 
@@ -14,15 +16,19 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 		data = napster.getStreamData(query['artist'], query['track'])
 		if data is None:
 			return []
-		return [{
-			'artist': data["artist"],
-      'track' : data["track"],
-      'album' : data["album"],
-      'source' : "Napster",
-      # NB this url should be url encoded properly:
-      'url' : data["url"],
-      'score' : 1.00
-		}]
+
+		res = []
+		for track in data:
+			res.append({
+				'artist': track["artist"],
+				'track' : track["track"],
+				'album' : track["album"],
+				'source' : "Napster",
+				'url' : track["url"],
+				'duration' : track["duration"],
+				'score' : 1.00
+					})
+		return res	
 		
 if __name__ == "__main__":
 	try:
