@@ -8,6 +8,8 @@ import re
 from htmlentitydefs import name2codepoint
 import httplib
 import os
+import ConfigParser
+import sys
 
 session_created=False
 session_key = ""
@@ -15,10 +17,36 @@ session_key = ""
 # XXX: For the hackday this can be anything - should be a MAC or something
 DEVICE_ID="hack"
 
-def createSession(apiKey):
+def connect():
+	config=ConfigParser.RawConfigParser()
+	config.add_section("napsdar")
+	config.set("napsdar", "username", "")
+	config.set("napsdar", "password", "")
+	config.set("napsdar", "apikey", "")
+	config.read(os.path.expanduser("~/.playdar/napsdar"))
+	user = config.get("napsdar", "username")
+	passw = config.get("napsdar", "password")
+	apiKey = config.get("napsdar", "apikey")
+	if apiKey == "":
+		raise Exception("Need an API key (napsdar.apikey)")
+
+	if user != "" and passw != "":
+		_login(apiKey, user, passw)
+		print >> sys.stderr, "logging in"
+	else:
+		print >> sys.stderr, "no user"
+		_createSession(apiKey)
+
+def _createSession(apiKey):
 	global session_created, session_key
 	args = {"apiKey": apiKey, "deviceId": DEVICE_ID}
 	res = _do_parsed_napster_query("security/createSession", apiKey=apiKey, deviceId=DEVICE_ID)
+	session_key = res['sessionKey'][0]
+	session_created = True
+
+def _login(apiKey, user, passw):
+	global session_created, session_key
+	res = _do_parsed_napster_query("security/login", apiKey=apiKey, deviceId=DEVICE_ID, username=user, password=passw)
 	session_key = res['sessionKey'][0]
 	session_created = True
 
@@ -62,10 +90,11 @@ def _do_napster_query(method,**kwargs):
 	if session_created:
 		args = { "sessionKey" : session_key }
 	elif method != "security/login" and method != "security/createSession":
-		raise Exception("Login or create a session first")
+		raise Exception("Login or create a session first (use connect())")
 
 	for k,v in kwargs.items():
 		args[k] = v.encode("utf8")
+
 	url=urlparse.urlunparse(('https',
 		'api.napster.com:8443',
 		'/rest/v4/%s' % method,
@@ -83,7 +112,6 @@ def searchArtist(name):
 def searchTrack(title):
 	return _do_parsed_napster_query("search/tracks", searchTerm=title)
 
-
 def getStreamData(artist, title):
 	res = searchTrack(title)
 	for t in res.get('track', []):
@@ -96,7 +124,7 @@ def getStreamData(artist, title):
 			return {"url": f.url, "artist": t['artistName'][0], "track": t['trackName'][0], "album": t['albumName'][0]}
 
 def test():
-	#createSession("SSHvRhrPsvDwVodGkPUw")
+	connect()
 	print getStreamData("Miles Davis", "Bitches Brew")
 
 if __name__ == "__main__":
