@@ -11,12 +11,25 @@ import os
 import ConfigParser
 import sys
 import time
+import pickle
 
 session_created=False
 session_key = ""
 
 # XXX: For the hackday this can be anything - should be a MAC or something
 DEVICE_ID="hack"
+
+memocache = {}
+def memoify(func):
+	def memoify(*args,**kwargs):
+		if func.__name__ not in memocache:
+			memocache[func.__name__]={}
+		key=pickle.dumps((args,kwargs))
+		if key not in memocache[func.__name__]:
+			memocache[func.__name__][key]=func(*args,**kwargs)
+
+		return memocache[func.__name__][key]
+	return memoify
 
 def connect():
 	config=ConfigParser.RawConfigParser()
@@ -75,6 +88,7 @@ def _parse_tree(f):
 	return _etree_to_dict(tree.getroot())
 
 def _do_raw_napster_query(url):
+	print >> sys.stderr, "opening url",url
 	f = urllib2.Request(url)
 	try:
 		f = urllib2.urlopen(f)
@@ -105,6 +119,7 @@ def _do_napster_query(method,**kwargs):
 def _do_parsed_napster_query(method, **kwargs):
 	return _parse_tree(_do_napster_query(method, **kwargs))
 
+@memoify
 def searchArtists(name):
 	return _do_parsed_napster_query("search/artists", searchTerm=name)
 
@@ -146,13 +161,13 @@ def getStreamData(artist, title):
 def test():
 	import time
 	start = time.time()
-	print "starting at", start
+#	print "starting at", start
 	connect()
 	m = time.time()
-	print "Logged in after",m-start,"secs"
+#	print "Logged in after",m-start,"secs"
 	print getStreamData(sys.argv[1], sys.argv[2])
-	print "got results after",time.time()-m,"secs"
-	print "total queries:", queries
+	print getStreamData(sys.argv[1], sys.argv[2])
+#	print "got results after",time.time()-m,"secs"
 
 if __name__ == "__main__":
 	test()
