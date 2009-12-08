@@ -15,6 +15,7 @@ import pickle
 
 session_created=False
 session_key = ""
+session_expiry = 0
 
 # XXX: For the hackday this can be anything - should be a MAC or something
 DEVICE_ID="hack"
@@ -50,16 +51,18 @@ def connect():
 		_createSession(apiKey)
 
 def _createSession(apiKey):
-	global session_created, session_key
+	global session_created, session_key, session_expiry
 	res = _do_napster_query("security/createSession", apiKey=apiKey, deviceId=DEVICE_ID)
 	session_key = res['sessionKey'][0]
 	session_created = True
+	session_expiry = time.time() + int(res['minutesUntilExpiry'][0]) * 60
 
 def _login(apiKey, user, passw):
-	global session_created, session_key
+	global session_created, session_key, session_expiry
 	res = _do_napster_query("security/login", apiKey=apiKey, deviceId=DEVICE_ID, username=user, password=passw)
 	session_key = res['sessionKey'][0]
 	session_created = True
+	session_expiry = time.time() + int(res['minutesUntilExpiry'][0]) * 60
 
 def htmlentitydecode(s):
     os= re.sub('&(%s);' % '|'.join(name2codepoint), 
@@ -86,24 +89,10 @@ def _parse_tree(f):
 	tree = xml.etree.ElementTree.ElementTree(file=f)
 	return _etree_to_dict(tree.getroot())
 
-def _do_raw_query(url):
-	print >> sys.stderr, "opening url",url
-	f = urllib2.Request(url)
-	try:
-		f = urllib2.urlopen(f)
-	except Exception, e:
-		print >> sys.stderr, e.msg
-		print >> sys.stderr, e.fp.read()
-		raise
-	return f
-
-def _do_napster_query(method,**kwargs):
+def _do_napster_query(method, **kwargs):
+	""" You probably don't want to use this to do a query -
+	    use _do_checked_query instead"""
 	args = {}
-	if session_created:
-		args = { "sessionKey" : session_key }
-	elif method != "security/login" and method != "security/createSession":
-		raise Exception("Login or create a session first (use connect())")
-
 	for k,v in kwargs.items():
 		args[k] = v.encode("utf8")
 
@@ -113,14 +102,35 @@ def _do_napster_query(method,**kwargs):
 		'',
 		urllib.urlencode(args),
 		''))
-	return _parse_tree(_do_raw_query(url))
+
+	f = urllib2.Request(url)
+	try:
+		f = urllib2.urlopen(f)
+	except Exception, e:
+		print >> sys.stderr, e.msg
+		print >> sys.stderr, e.fp.read()
+		raise
+
+	return _parse_tree(f)
 
 @memoify
+def _do_checked_query(method, **kwargs):
+	if not session_created:
+		raise Exception("Login or create a session first (use connect())")
+
+	if time.time() > session_expiry:
+		# re-login if session has expired
+		connect()
+
+	kwargs["sessionKey"] = session_key
+
+	return _do_napster_query(method, **kwargs)
+
 def searchArtists(name):
-	return _do_napster_query("search/artists", searchTerm=name)
+	return _do_checked_query("search/artists", searchTerm=name)
 
 def searchTracks(title):
-	return _do_napster_query("search/tracks", searchTerm=title)
+	return _do_checked_query("search/tracks", searchTerm=title)
 
 def getStreamData(artist, title):
 	artists = searchArtists(artist)
