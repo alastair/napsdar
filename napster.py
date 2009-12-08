@@ -51,14 +51,13 @@ def connect():
 
 def _createSession(apiKey):
 	global session_created, session_key
-	args = {"apiKey": apiKey, "deviceId": DEVICE_ID}
-	res = _do_parsed_napster_query("security/createSession", apiKey=apiKey, deviceId=DEVICE_ID)
+	res = _do_napster_query("security/createSession", apiKey=apiKey, deviceId=DEVICE_ID)
 	session_key = res['sessionKey'][0]
 	session_created = True
 
 def _login(apiKey, user, passw):
 	global session_created, session_key
-	res = _do_parsed_napster_query("security/login", apiKey=apiKey, deviceId=DEVICE_ID, username=user, password=passw)
+	res = _do_napster_query("security/login", apiKey=apiKey, deviceId=DEVICE_ID, username=user, password=passw)
 	session_key = res['sessionKey'][0]
 	session_created = True
 
@@ -87,7 +86,7 @@ def _parse_tree(f):
 	tree = xml.etree.ElementTree.ElementTree(file=f)
 	return _etree_to_dict(tree.getroot())
 
-def _do_raw_napster_query(url):
+def _do_raw_query(url):
 	print >> sys.stderr, "opening url",url
 	f = urllib2.Request(url)
 	try:
@@ -114,17 +113,14 @@ def _do_napster_query(method,**kwargs):
 		'',
 		urllib.urlencode(args),
 		''))
-	return _do_raw_napster_query(url)
-
-def _do_parsed_napster_query(method, **kwargs):
-	return _parse_tree(_do_napster_query(method, **kwargs))
+	return _parse_tree(_do_raw_query(url))
 
 @memoify
 def searchArtists(name):
-	return _do_parsed_napster_query("search/artists", searchTerm=name)
+	return _do_napster_query("search/artists", searchTerm=name)
 
 def searchTracks(title):
-	return _do_parsed_napster_query("search/tracks", searchTerm=title)
+	return _do_napster_query("search/tracks", searchTerm=title)
 
 def getStreamData(artist, title):
 	artists = searchArtists(artist)
@@ -140,8 +136,6 @@ def getStreamData(artist, title):
 			url += "?sessionKey="+session_key
 			# Napster currently returns a http:// url but the https port, so change it.
 			url = url.replace(":8443", ":8080")
-			#url = urlparse.urlparse(url)
-			#f = _do_napster_query("tracks/%s" % os.path.basename(url.path))
 
 			duration = t['duration'][0]
 			durparts = duration.split(":")
