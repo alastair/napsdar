@@ -23,16 +23,26 @@ DEVICE_ID="hack"
 memocache = {}
 def memoify(func):
 	def memoify(*args,**kwargs):
+		now = time.time()
 		if func.__name__ not in memocache:
 			memocache[func.__name__]={}
 		key=pickle.dumps((args,kwargs))
-		if key not in memocache[func.__name__]:
-			memocache[func.__name__][key]=func(*args,**kwargs)
+		if key in memocache[func.__name__]:
+			lastrun, data = memocache[func.__name__][key]
+			if lastrun + 50 * 60 < now:
+				# delete so that playurls are still valid
+				del memocache[func.__name__][key]
 
-		return memocache[func.__name__][key]
+		if key not in memocache[func.__name__]:
+			memocache[func.__name__][key]=(now, func(*args,**kwargs))
+
+		return memocache[func.__name__][key][1]
 	return memoify
 
 def connect():
+	global memocache
+	memocache = {}
+
 	config=ConfigParser.RawConfigParser()
 	config.add_section("napsdar")
 	config.set("napsdar", "username", "")
