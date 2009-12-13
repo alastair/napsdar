@@ -12,6 +12,7 @@ import ConfigParser
 import sys
 import time
 import pickle
+import playdar_resolver
 
 session_created=False
 session_key = ""
@@ -113,6 +114,7 @@ def _do_napster_query(method, **kwargs):
 		urllib.urlencode(args),
 		''))
 
+	print >> sys.stderr, "opening url",url
 	f = urllib2.Request(url)
 	try:
 		f = urllib2.urlopen(f)
@@ -142,35 +144,83 @@ def searchArtists(name):
 def searchTracks(title):
 	return _do_checked_query("search/tracks", searchTerm=title)
 
-def getStreamData(artist, title):
+def searchAlbums(name):
+	return _do_checked_query("search/albums", searchTerm=name)
+
+def artistTrackSearch(artist, track):
+	print >>sys.stderr, "album not set.  doing track search"
+	print >>sys.stderr, "artist",artist,"track",track
 	artists = searchArtists(artist)
 	artistlist = []
 	for artist in artists.get('artist', []):
 		artistlist.append(artist['restArtistURL'][0])
-	tracks = searchTracks(title)
+
+	tracks = searchTracks(track)
 	ret = []
 	for t in tracks.get('track', []):
 		artistUrl = t['artistResourceURL'][0]
 		if artistUrl in artistlist:
-			url = t['playTrackURL'][0]
-			url += "?sessionKey="+session_key
-			# Napster currently returns a http:// url but the https port, so change it.
-			url = url.replace(":8443", ":8080")
-
-			duration = t['duration'][0]
-			durparts = duration.split(":")
-			if len(durparts) == 2:
-				length = int(durparts[0]) * 60 + int(durparts[1])
-			else:
-				length = -1
-
-			ret.append({
-				"url": url,
-				"artist": t['artistName'][0],
-				"track": t['trackName'][0],
-				"album": t['albumName'][0],
-				"duration": length })
+			ret.append(_make_track_result(t))
 	return ret
+
+def getStreamData(artistName, albumName, title):
+	artists = searchArtists(artistName)
+	artistlist = []
+	for artist in artists.get('artist', []):
+		artistlist.append(artist['restArtistURL'][0])
+	if len(artistlist) == 0:
+		return []
+
+	albumlist = []
+	if len(albumName) > 0:
+		albums = searchAlbums(albumName)
+		for album in albums.get('album', []):
+			if album['artistResourceURL'][0] in artistlist:
+				albumlist.append(album)
+		if len(albumlist) == 0:
+			# no album, try a track search instead
+			# (may be on a best-of?)
+			pass
+		elif len(albumlist) == 1:
+			# intersection of album/artist search is 1 album
+			albumurl = "albums/%s" % os.path.basename(albumlist[0]['albumResourceURL'][0])
+			albumdata = _do_checked_query(albumurl)
+			for tr in albumdata['tracks']:
+				if tr['trackName'][0].lower() == title.lower():
+					return [_make_track_result(tr)]
+			# If no matches, try a soundex - fixes the Foxy Lady/Foxey Lady problem at least!
+			for tr in albumdata['tracks']:
+				if playdar_resolver.soundex(tr['trackName'][0]) == playdar_resolver.soundex(title):
+					return [_make_track_result(tr)]
+			# no match, do a track search
+			return artistTrackSearch(artistName, title)
+		else:
+			# more than 1 match.  track search?
+			return artistTrackSearch(artistName, title)
+
+	else: # No album, just do an artist/track search
+		return artistTrackSearch(artistName, title)
+
+
+def _make_track_result(track):
+	url = track['playTrackURL'][0]
+	url += "?sessionKey="+session_key
+	# Napster currently returns a http:// url but the https port, so change it.
+	url = url.replace(":8443", ":8080")
+
+	duration = track['duration'][0]
+	durparts = duration.split(":")
+	if len(durparts) == 2:
+		length = int(durparts[0]) * 60 + int(durparts[1])
+	else:
+		length = -1
+
+	return {
+		"url": url,
+		"artist": track['artistName'][0],
+		"track": track['trackName'][0],
+		"album": track['albumName'][0],
+		"duration": length }
 
 def test():
 	import time
@@ -179,8 +229,7 @@ def test():
 	connect()
 	m = time.time()
 #	print "Logged in after",m-start,"secs"
-	print getStreamData(sys.argv[1], sys.argv[2])
-	print getStreamData(sys.argv[1], sys.argv[2])
+	print getStreamData(sys.argv[1], sys.argv[2], sys.argv[3])
 #	print "got results after",time.time()-m,"secs"
 
 if __name__ == "__main__":

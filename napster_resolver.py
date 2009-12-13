@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# In your etc/playdar.conf scripts section, add "contrib/resolver_libs/example_respolver.py"
 # to see this in action.
 import playdar_resolver
 import napster
@@ -13,7 +12,7 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 		return {'name':"Napster Resolver"}
 
 	def results(self, query):
-		data = napster.getStreamData(query['artist'], query['track'])
+		data = napster.getStreamData(query['artist'], query['album'], query['track'])
 		if data is None:
 			return []
 
