@@ -204,7 +204,7 @@ def getStreamData(artistName, albumName, title):
 		if len(albumlist) == 0:
 			# no album, try a track search instead
 			# (may be on a best-of?)
-			pass
+			return artistTrackSearch(artistName, title)
 		elif len(albumlist) == 1:
 			# intersection of album/artist search is 1 album
 			albumurl = "albums/%s" % os.path.basename(albumlist[0]['albumResourceURL'][0])
