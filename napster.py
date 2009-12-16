@@ -114,7 +114,7 @@ def _do_napster_query(method, **kwargs):
 		urllib.urlencode(args),
 		''))
 
-	print >> sys.stderr, "opening url",url
+	#print >> sys.stderr, "opening url",url
 	f = urllib2.Request(url)
 	try:
 		f = urllib2.urlopen(f)
@@ -147,20 +147,44 @@ def searchTracks(title):
 def searchAlbums(name):
 	return _do_checked_query("search/albums", searchTerm=name)
 
+def page(query, **kwargs):
+	start = 0
+	skipNum = 50
+	kwargs["startPosition"] = str(start)
+	kwargs["maxResults"] = str(skipNum)
+	res = _do_checked_query(query, **kwargs)
+	numRes = res["numberOfResults"][0]
+	total = int(numRes)
+	while total > 0:
+		# This does the query again, but it's cached
+		kwargs["startPosition"] = str(start)
+		kwargs["maxResults"] = str(skipNum)
+		yield _do_checked_query(query, **kwargs)
+		start += skipNum
+		total -= 50
+
 def artistTrackSearch(artist, track):
-	print >>sys.stderr, "album not set.  doing track search"
-	print >>sys.stderr, "artist",artist,"track",track
+	ret = []
 	artists = searchArtists(artist)
 	artistlist = []
-	for artist in artists.get('artist', []):
-		artistlist.append(artist['restArtistURL'][0])
-
-	tracks = searchTracks(track)
-	ret = []
-	for t in tracks.get('track', []):
-		artistUrl = t['artistResourceURL'][0]
-		if artistUrl in artistlist:
-			ret.append(_make_track_result(t))
+	artists = artists.get('artist', [])
+	# If we have 1 artist and a 'simple' track name (1/2 words), 
+	# use the artist track listing instead, so we don't have to 
+	# do a full track search
+	if len(artists) == 1 and len(track.split(" ")) < 3:
+		artistUrl = "artists/%d/tracks" % int(artists[0]['id'][0])
+		for trackPage in page(artistUrl):
+			for tr in trackPage.get('track', []):
+				if tr['trackName'][0].lower() == track.lower():
+					ret.append(_make_track_result(tr))
+	else:
+		for artist in artists:
+			artistlist.append(artist['restArtistURL'][0])
+		for track in page("search/tracks", searchTerm=track):
+			for tr in track.get('track', []):
+				artistUrl = tr['artistResourceURL'][0]
+				if artistUrl in artistlist:
+					ret.append(_make_track_result(tr))
 	return ret
 
 def getStreamData(artistName, albumName, title):
