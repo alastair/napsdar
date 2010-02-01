@@ -117,9 +117,11 @@ def _do_napster_query(method, **kwargs):
 	for k,v in kwargs.items():
 		args[k] = v.encode("utf8")
 
+	# Napster sometimes give us some query params.  Get rid of them.
+	parsed = urlparse.urlparse(method)
 	url=urlparse.urlunparse(('https',
 		'api.napster.com:8443',
-		'/rest/v4/%s' % method,
+		'/rest/1.1/%s' % parsed.path,
 		'',
 		urllib.urlencode(args),
 		''))
@@ -178,11 +180,17 @@ def artistTrackSearch(artist, track):
 	artists = searchArtists(artist)
 	artistlist = []
 	artists = artists.get('artist', [])
+	# More than one artist, first try an exact text search
+	if len(artists) > 1:
+		newartists = [i for i in artists if i["name"][0].lower() == artist.lower()]
+		if len(newartists) == 1:
+			artists = newartists
+
 	# If we have 1 artist and a 'simple' track name (1/2 words), 
 	# use the artist track listing instead, so we don't have to 
 	# do a full track search
 	if len(artists) == 1 and len(track.split(" ")) < 3:
-		artistUrl = "artists/%d/tracks" % int(artists[0]['id'][0])
+		artistUrl = "tracks/artist/%d" % int(artists[0]['id'][0])
 		for trackPage in page(artistUrl):
 			for tr in trackPage.get('track', []):
 				if tr['trackName'][0].lower() == track.lower():
@@ -219,11 +227,11 @@ def getStreamData(artistName, albumName, title):
 			# intersection of album/artist search is 1 album
 			albumurl = "albums/%s" % os.path.basename(albumlist[0]['albumResourceURL'][0])
 			albumdata = _do_checked_query(albumurl)
-			for tr in albumdata['tracks']:
+			for tr in albumdata['track']:
 				if tr['trackName'][0].lower() == title.lower():
 					return [_make_track_result(tr)]
 			# If no matches, try a soundex - fixes the Foxy Lady/Foxey Lady problem at least!
-			for tr in albumdata['tracks']:
+			for tr in albumdata['track']:
 				if playdar_resolver.soundex(tr['trackName'][0]) == playdar_resolver.soundex(title):
 					return [_make_track_result(tr)]
 			# no match, do a track search
@@ -238,7 +246,8 @@ def getStreamData(artistName, albumName, title):
 
 def _make_track_result(track):
 	url = track['playTrackURL'][0]
-	url += "?sessionKey="+session_key
+	if url.find("sessionKey") < 0:
+		url += "?sessionKey="+session_key
 	# Napster currently returns a http:// url but the https port, so change it.
 	url = url.replace(":8443", ":8080")
 
