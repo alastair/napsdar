@@ -1,5 +1,9 @@
 #!/usr/bin/python
-# to see this in action.
+
+# Playdar Napster resolver
+# Copyright 2009, 2010 Alastair Porter
+# Released under the MIT License
+
 import playdar_resolver
 import napster
 import sys

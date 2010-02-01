@@ -1,5 +1,9 @@
 #!/usr/bin/python
 
+# Playdar Napster resolver
+# Copyright 2009, 2010 Alastair Porter
+# Released under the MIT License
+
 import urllib
 import urllib2
 import urlparse
