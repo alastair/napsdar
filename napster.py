@@ -17,13 +17,13 @@ import sys
 import time
 import pickle
 import playdar_resolver
+import uuid
+
+NAPSTER_API_KEY="oAdWexObHJrLGuwmcFBX"
 
 session_created=False
 session_key = ""
 session_expiry = 0
-
-# XXX: For the hackday this can be anything - should be a MAC or something
-DEVICE_ID="hack"
 
 memocache = {}
 def memoify(func):
@@ -45,25 +45,32 @@ def memoify(func):
 	return memoify
 
 def connect():
-	global memocache
+	global memocache, DEVICE_ID
 	memocache = {}
+	config_path = os.path.join(os.getcwd(), "etc", "napster.conf")
 
 	config=ConfigParser.RawConfigParser()
-	config.add_section("napsdar")
-	config.set("napsdar", "username", "")
-	config.set("napsdar", "password", "")
-	config.set("napsdar", "apikey", "")
-	config.read(os.path.expanduser("~/.playdar/napsdar"))
-	user = config.get("napsdar", "username")
-	passw = config.get("napsdar", "password")
-	apiKey = config.get("napsdar", "apikey")
-	if apiKey == "":
-		raise Exception("Need an API key (napsdar.apikey)")
+	config.add_section("napster")
+	config.set("napster", "username", "")
+	config.set("napster", "password", "")
+	config.set("napster", "deviceid", "")
+	config.read(config_path)
+	user = config.get("napster", "username")
+	passw = config.get("napster", "password")
+	devid = config.get("napster", "deviceid")
+	if NAPSTER_API_KEY == "":
+		raise Exception("Need an API key (napster.apikey)")
+	if devid == "":
+		devid = str(uuid.uuid4())
+		config.set("napster", "deviceid", devid)
+		with open(config_path, 'wb') as configfile:
+			config.write(configfile)
+	DEVICE_ID = devid
 
 	if user != "" and passw != "":
-		_login(apiKey, user, passw)
+		_login(NAPSTER_API_KEY, user, passw)
 	else:
-		_createSession(apiKey)
+		_createSession(NAPSTER_API_KEY)
 
 def _createSession(apiKey):
 	global session_created, session_key, session_expiry
