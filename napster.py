@@ -159,19 +159,19 @@ def searchAlbums(name):
 
 def page(query, **kwargs):
 	start = 0
-	skipNum = 50
+	skipNum = 100
 	kwargs["startPosition"] = str(start)
 	kwargs["maxResults"] = str(skipNum)
 	res = _do_checked_query(query, **kwargs)
 	numRes = res["numberOfResults"][0]
 	total = int(numRes)
-	while total > 0:
+	while total > 0 and start < 1000:
 		# This does the query again, but it's cached
 		kwargs["startPosition"] = str(start)
 		kwargs["maxResults"] = str(skipNum)
 		yield _do_checked_query(query, **kwargs)
 		start += skipNum
-		total -= 50
+		total -= skipNum
 
 def artistTrackSearch(artist, track):
 	ret = []
