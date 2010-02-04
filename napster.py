@@ -47,13 +47,14 @@ def memoify(func):
 def connect():
 	global memocache, DEVICE_ID
 	memocache = {}
+	config_path = os.path.join(os.getenv("PLAYDAR_ETC", "etc"), "napster.conf")
 
 	config=ConfigParser.RawConfigParser()
 	config.add_section("napster")
 	config.set("napster", "username", "")
 	config.set("napster", "password", "")
 	config.set("napster", "deviceid", "")
-	config.read(os.path.join(os.getenv("PLAYDAR_ETC", "etc"), "napster.conf"))
+	config.read(config_path)
 	user = config.get("napster", "username")
 	passw = config.get("napster", "password")
 	devid = config.get("napster", "deviceid")
