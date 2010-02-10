@@ -30,6 +30,7 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 	def make_track_result(self, track, query):
 		playformat = self.choose_playback_format(query.get("mimetypes", []))
 		url = "%s&mediaType=%s" % (track["url"], playformat)
+		score = self.calculate_score(query, track)
 		return {
 				'artist': track["artist"],
 				'track' : track["track"],
@@ -37,7 +38,7 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 				'source' : "Napster",
 				'url' : url,
 				'duration' : track["duration"],
-				'score' : 1.00
+				'score' : score
 		}
 
 	def choose_playback_format(self, mimetypes):
@@ -47,6 +48,34 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 			return "STREAM_128"
 
 		return "HTTP_STREAM_128_MP3"
+
+	def calculate_score(self, query, track):
+		artist_score = self.single_score(query.get("artist", "").lower(), track["artist"].lower())
+		track_score = self.single_score(query.get("track", "").lower(), track["track"].lower())
+		if query.get("album", "") == "":
+			album_score = 1.0
+		else:
+			album_score = self.single_score(query.get("album", "").lower(), track["album"].lower())
+
+		score = (artist_score + track_score + album_score) / 3.0
+		return round(score, 2)
+
+	def single_score(self, a, b):
+		if a == b:
+			return 1.0
+		if playdar_resolver.soundex(a) == playdar_resolver.soundex(b):
+			return 1.0
+		m = self.percentage_match(a, b)
+		return m
+
+	def percentage_match(self, a, b):
+		if a.find(b) > 0:
+			return (len(b)*1.0)/(len(a)*1.0)
+		elif b.find(a) > 0:
+			return (len(a)*1.0)/(len(b)*1.0)
+		else:
+			return 0.0
+
 
 if __name__ == "__main__":
 	try:
