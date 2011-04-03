@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Playdar Napster resolver
 # Copyright 2009, 2010 Alastair Porter
@@ -13,7 +13,12 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 	def __init__(self):
 		napster.connect()
 	def resolver_settings(self):
-		return {'name':"Napster Resolver"}
+		return {
+		    'name' : "Napster Resolver",
+		    'weight' : 70,
+		    'targettime' : 10000,
+		    'localonly' : True
+		}
 
 	def results(self, query):
 		if "artist" not in query or "track" not in query:
@@ -35,6 +40,7 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 				'artist': track["artist"],
 				'track' : track["track"],
 				'album' : track["album"],
+				'mimetype' : "audio/mp4",
 				'source' : "Napster",
 				'url' : url,
 				'duration' : track["duration"],
@@ -43,11 +49,13 @@ class NapsterResolver(playdar_resolver.PlaydarResolver):
 
 	def choose_playback_format(self, mimetypes):
 		""" Choose what format to give the stream in.
-		    TODO: Add AAC and FMS """
+		    TODO: Add AAC and FMS
 		if "audio/x-ms-wma" in mimetypes:
 			return "STREAM_128"
+		if "audio/mp4" in mimetypes:
+			return "HTTP_STREAM_MP4" """
 
-		return "HTTP_STREAM_128_MP3"
+		return "HTTP_STREAM_MP4"
 
 	def calculate_score(self, query, track):
 		artist_score = self.single_score(query.get("artist", "").lower(), track["artist"].lower())
